@@ -1,16 +1,20 @@
-// Meninges analysis macro created by Katherine Bruch
+// Meninges analysis macro for four channels created by Katherine Bruch
 
 //Part I Filtering 
-// this macro will take a folder filled with .tif files already at max z-projection and do the following:
+// this macro will take a folder filled with .tif files that have already had max z-projection and do the following:
 // a) allow the user to set the channel name, color, brightness/contrast min and max, and threshold values for up to four channels 
 // b) apply these settings to all images in the chosen directory 
 // c) apply median filter to sharpen images 
 // d) save a merged images in a new folder of "Filtered_TIFs" 
 
 //Part II Segmenting 
-// a) apply thresholding values to each "Filtered_TIF"
+// a) apply thresholding values to each "Filtered_TIF" image 
 // b) calculate the % area and / or cell counts in each channel
 // c) create a "Results" folder with the output in a .csv file 
+
+// Helper shorthand variables for the available types of analysis.
+var PercentArea = "percentArea"
+var CellCount = "cellCount"
 
 // Start of Settings // -------------------------------------------------------------------------------
 //set the name, color, min, max and thresholds here for all the channels 
@@ -19,63 +23,56 @@ C1name = "DAPI";
 C1color = "Blue";
 C1min = 10;
 C1max = 120;
-//threshold values - commented out for DAPI since we don't need to segment and quantify this 
-//c1Tmin = 0 ;
-//c1Tmax = 255;
-// chose the analysis you want to do for this channel  "percentArea" OR "cellCount" 
-//c1Analysis = "percentArea"
+// threshold values 
+c1Tmin = 0 ;
+c1Tmax = 255;
+// Choose the analysis you want to do for this channel (PercentArea, CellCount, list both, or leave blank)
+c1Analysis = newArray();
 
 // Channel 2 
 C2name = "CD3";
 C2color = "Magenta";
 C2min = 40;
 C2max = 80;
-// threshold values 
 c2Tmin = 55;
 c2Tmax = 255;
-// chose the analysis you want to do for this channel  "percentArea" OR "cellCount" 
-c2Analysis = "percentArea" 
-c22Analysis = "cellCount"
+c2Analysis = newArray(PercentArea, CellCount);
 
 // Channel 3
 C3name = "Lyve-1";
 C3color = "Grays";
 C3min = 0;
 C3max = 170;
-// threshold values 
 c3Tmin = 60;
 c3Tmax = 255;
-c3Analysis = "percentArea" 
+c3Analysis = newArray(PercentArea) 
 
 // Channel 4 
 C4name = "MHC-II";
 C4color = "Yellow Hot";
 C4min = 90;
 C4max = 255;
-// threshold values 
 c4Tmin = 70;
 c4Tmax = 255;
-c4Analysis = "percentArea" 
-c44Analysis = "cellCount"
+c4Analysis = newArray(PercentArea, CellCount)
 
 //set the pixel radius for median filter (1 is generally good for meninges at 10x)
 pixelrad = "radius=1"
 
 //Edit analyze particles parameters below 
 analyzeParticleParameters = "size=80-160 circularity=0.0-1.00 show=Outlines display exclude include summarize add"
+
 // End of Settings //	----------------------------------------------------------------------------------------				
 
 
 // Bring up the directory and set up folders for filtered images and results
 path = getDirectory("Choose a Directory"); 
 filename = getFileList(path); 
-newDir = path + "Filtered_TIFs" + File.separator; 
-newDir2 = path + "Results" + File.separator; 
+filteredDir = path + "Filtered_TIFs" + File.separator; 
+resultsDir = path + "Results" + File.separator; 
 
-if (File.exists(newDir)) 
-   exit("Destination directory already exists; remove it and then run this macro again"); 
-File.makeDirectory(newDir); 
-File.makeDirectory(newDir2); 
+File.makeDirectory(filteredDir); 
+File.makeDirectory(resultsDir); 
 
 // Part I Filtering // ----------------------------------------------------------------------------------------
 for (i=0; i<filename.length; i++) { 
@@ -105,14 +102,14 @@ for (i=0; i<filename.length; i++) {
                 Stack.setDisplayMode("composite");
                 run("Median...", pixelrad);
                 rename(filename[i]);
-                saveAs("tiff", newDir + getTitle);
+                saveAs("tiff", filteredDir + getTitle);
       }    			
 }
                 close("*");	
                 
  // Part II Segmenting // ----------------------------------------------------------------------------------------
-path = getDirectory("Choose a Directory"); /// edit this to automatically get files from the "Filtered_Tif" folder 
-filename = getFileList(path); 
+path = filteredDir;
+filename = getFileList(filteredDir); 
 
 // Function for calculating %area
 function percentArea(channelID, channelName, channelMin, channelMax) { 
@@ -130,7 +127,7 @@ function percentArea(channelID, channelName, channelMin, channelMax) {
 		}				
 		close("*");		 
 		selectWindow("Results");
-		saveAs("Results", newDir2 + channelName + "_area" + ".csv");
+		saveAs("Results", resultsDir + channelName + "_area" + ".csv");
 		selectWindow("Results");
 		run("Close");
 }
@@ -150,45 +147,42 @@ function cellCount(channelID, channelName, channelMin, channelMax) {
 		}				
 		close("*");		 
 		selectWindow("Summary");
-		saveAs("Results", newDir2 + channelName + "_counts" + ".csv");
+		saveAs("Results", resultsDir + channelName + "_counts" + ".csv");
 		selectWindow("Results");
 		run("Close");
 }
 
-//if (c1Analysis == "percentArea") {
-//	percentArea("C1", C1name, c1Tmin, c1Tmax) 
-//} else if (c1Analysis == "cellCount") { 
-//	cellCount("C1", C1name, c1Tmin, c1Tmax) 
-//	}
-	
-if (c2Analysis == "percentArea") {
-	percentArea("C2", C2name, c2Tmin, c2Tmax); 
-} else if (c2Analysis == "cellCount") { 
-	cellCount("C2", C2name, c2Tmin, c2Tmax); 
-	}
 
-if (c3Analysis == "percentArea") {
-	percentArea("C3", C3name, c3Tmin, c3Tmax); 
-} else if (c3Analysis == "cellCount") { 
-	cellCount("C3", C3name, c3Tmin, c3Tmax); 
+for (i = 0; i < c1Analysis.length; i++) {
+	if (c1Analysis[i] == PercentArea) {
+		percentArea("C1", C1name, c1Tmin, c1Tmax);
+	} else if (c1Analysis[i] == CellCount) { 
+		cellCount("C1", C1name, c1Tmin, c1Tmax);
 	}
+}
 
-if (c4Analysis == "percentArea") {
-	percentArea("C4", C4name, c4Tmin, c4Tmax); 
-} else if (c4Analysis == "cellCount") { 
-	cellCount("C4", C4name, c4Tmin, c4Tmax); 
+for (i = 0; i < c2Analysis.length; i++) {
+	if (c2Analysis[i] == PercentArea) {
+		percentArea("C2", C2name, c2Tmin, c2Tmax);
+	} else if (c2Analysis[i] == CellCount) { 
+		cellCount("C2", C2name, c2Tmin, c2Tmax);
 	}
+}
 
-if (c22Analysis == "percentArea") {
-	percentArea("C2", C2name, c2Tmin, c2Tmax); 
-} else if (c22Analysis == "cellCount") { 
-	cellCount("C2", C2name, c2Tmin, c2Tmax); 
+for (i = 0; i < c3Analysis.length; i++) {
+	if (c3Analysis[i] == PercentArea) {
+		percentArea("C3", C3name, c3Tmin, c3Tmax);
+	} else if (c3Analysis[i] == CellCount) { 
+		cellCount("C3", C3name, c3Tmin, c3Tmax);
 	}
+}
 
-if (c44Analysis == "percentArea") {
-	percentArea("C4", C4name, c4Tmin, c4Tmax); 
-} else if (c44Analysis == "cellCount") { 
-	cellCount("C4", C4name, c4Tmin, c4Tmax); 
+for (i = 0; i < c4Analysis.length; i++) {
+	if (c4Analysis[i] == PercentArea) {
+		percentArea("C4", C4name, c4Tmin, c4Tmax);
+	} else if (c4Analysis[i] == CellCount) { 
+		cellCount("C4", C4name, c4Tmin, c4Tmax);
 	}
+}
 
 close("*");
